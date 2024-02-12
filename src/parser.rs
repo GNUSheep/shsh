@@ -10,7 +10,7 @@ impl Command {
         let name = String::new();
         let args: Vec<String> = vec![];
 
-        Self{name, args}
+        Self { name, args }
     }
 }
 
@@ -23,7 +23,11 @@ pub fn parse_input() -> Command {
     };
 
     let mut command: Command = Command::new();
-    if let Some((name, args)) = user_input.split_whitespace().collect::<Vec<_>>().split_first() {
+    if let Some((name, args)) = user_input
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .split_first()
+    {
         command.name = name.to_string();
         command.args = args.iter().map(|v| v.to_string()).collect();
     }

@@ -1,6 +1,7 @@
-use std::io::Write;
 use std::io;
+use std::io::Write;
 
+mod executor;
 mod parser;
 
 fn main() {
@@ -9,6 +10,6 @@ fn main() {
         io::stdout().flush().unwrap();
 
         let command = parser::parse_input();
-        println!("{}, {:?}", command.name, command.args);
+        executor::exec_command(command)
     }
 }
