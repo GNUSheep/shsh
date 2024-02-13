@@ -1,4 +1,5 @@
 use std;
+use std::process::exit;
 
 pub struct Command {
     pub name: String,
@@ -18,7 +19,11 @@ pub fn parse_input() -> Command {
     let mut user_input = String::new();
 
     let _ = match std::io::stdin().read_line(&mut user_input) {
-        Ok(_) => (),
+        Ok(bytes) => {
+            if bytes == 0 {
+                exit(0)
+            }
+        },
         Err(error) => panic!("Problem parsing user input, {:?}", error),
     };
 
