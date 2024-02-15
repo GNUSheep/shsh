@@ -1,6 +1,7 @@
 use std::process::{Command, exit, Stdio, Child};
 use std::collections::VecDeque;
 use std::path::Path;
+use std::fs::File;
 use std::env;
 
 use crate::parser;
@@ -52,6 +53,15 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
         let mut stdout = Stdio::inherit();
         if !cmds.is_empty() {
             stdout = Stdio::piped();
+        }
+
+        if !cmd.redirect_file.is_empty() {
+            match File::create(cmd.redirect_file) {
+                Ok(file) => {
+                    stdout = Stdio::from(file);
+                }
+                Err(_) => println!("Problem with redirecting to file"),
+            }
         }
 
         let child = Command::new(cmd.name).args(cmd.args).stdout(stdout).stdin(stdin).spawn();

@@ -5,14 +5,16 @@ use std::collections::VecDeque;
 pub struct Command {
     pub name: String,
     pub args: Vec<String>,
+    pub redirect_file: String,
 }
 
 impl Command {
     fn new() -> Self {
         let name = String::new();
         let args: Vec<String> = vec![];
+        let redirect_file = String::new();
 
-        Self { name, args }
+        Self { name, args, redirect_file }
     }
 }
 
@@ -41,6 +43,11 @@ pub fn parse_input() -> VecDeque<Command> {
         {
             command.name = name.to_string();
             command.args = args.iter().map(|v| v.to_string()).collect();
+            
+            if let Some(index) = args.iter().position(|v| v.contains('>')) {
+                command.redirect_file = command.args[index..].concat()[1..].to_string();
+                command.args = command.args[..index].to_vec();
+            }
         }
 
         commands.push_back(command);
