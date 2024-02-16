@@ -48,7 +48,7 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
             _ => (),
         }
     
-        let mut stdin = prev_cmd.map_or(Stdio::inherit(), |out: Child| Stdio::from(out.stdout.unwrap()));
+        let stdin = prev_cmd.map_or(Stdio::inherit(), |out: Child| Stdio::from(out.stdout.unwrap()));
 
         let mut stdout = Stdio::inherit();
         if !cmds.is_empty() {
