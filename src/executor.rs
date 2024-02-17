@@ -43,6 +43,8 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
     
                 return 
             }
+            "ls" => cmd.args.push("--color=auto".to_string()),
+            "grep" => cmd.args.push("--color=auto".to_string()),
             "" => return,
             "exit" => exit(0),
             _ => (),
