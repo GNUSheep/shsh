@@ -69,7 +69,7 @@ pub fn parse_input() -> VecDeque<Command> {
         {
             command.name = name.to_string();
             command.args = args.iter().map(|v| v.to_string()).collect();
-            
+
             if let Some(last_value) = args.last() {
                 if let Some(c) = last_value.chars().last() {
                     if c == '\\' {
@@ -81,8 +81,13 @@ pub fn parse_input() -> VecDeque<Command> {
             }
 
             if let Some(index) = command.args.iter().position(|v| v.contains('>')) {
-                command.redirect_file = command.args[index..].concat()[1..].to_string();
-                command.args = command.args[..index].to_vec();
+                if command.args[index].len() == 1 {
+                    command.redirect_file = command.args[index..index+2].concat()[1..].to_string();
+                    command.args.remove(index+1);
+                }else{
+                    command.redirect_file = command.args[index][1..].to_string();
+                }
+                command.args.remove(index);
             }
         }
 
