@@ -14,6 +14,7 @@ fn main() {
         print!("$ ");
         io::stdout().flush().unwrap();
         let command = parser::parse_input();
+        println!();
         executor::exec_command(command);
     }
 }

@@ -1,7 +1,13 @@
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::process::exit;
 use std::collections::VecDeque;
+
+use crossterm::{
+    event::{self, KeyCode, KeyEvent, KeyModifiers, Event},
+    execute,
+    cursor::{MoveTo, position},
+    terminal::{ClearType, Clear},
+};
 
 pub struct Command {
     pub name: String,
@@ -19,17 +25,47 @@ impl Command {
     }
 }
 
+fn get_cursor_position() -> [u16; 2] {
+    let pos = position().expect("Problem while getting cursor pos");
+
+    [pos.0, pos.1]
+}
+
 fn get_line() -> String {
     let mut user_input = String::new();
 
-    let _ = match std::io::stdin().read_line(&mut user_input) {
-        Ok(bytes) => {
-            if bytes == 0 {
-                exit(0)
+    crossterm::terminal::enable_raw_mode().expect("Problem with entering raw mode");
+
+    while let Event::Key(KeyEvent { code, modifiers, .. }) = event::read().unwrap() {
+        match code {
+            KeyCode::Enter => {
+                crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
+                return user_input.to_string();
             }
-        },
-        Err(error) => panic!("Problem parsing user input, {:?}", error),
-    };
+            KeyCode::Backspace => {
+                let pos = get_cursor_position();
+
+                if pos[0] > 2 {
+                    user_input.remove((pos[0] - 3) as usize);
+                    execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+                    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                    print!("$ {}", user_input);
+                    io::stdout().flush().unwrap();
+                }
+            }
+            KeyCode::Char(c) => {
+                print!("{}", c);
+                io::stdout().flush().unwrap();
+
+                user_input.push(c)
+            }
+            _ => {}
+        }
+
+        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
+            exit(0);
+        }
+    }
 
     user_input.trim().to_string()
 }
