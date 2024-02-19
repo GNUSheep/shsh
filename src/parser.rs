@@ -3,6 +3,8 @@ use std::io::Write;
 use std::process::exit;
 use std::collections::VecDeque;
 
+use crate::history;
+
 pub struct Command {
     pub name: String,
     pub args: Vec<String>,
@@ -34,14 +36,16 @@ fn get_line() -> String {
     user_input.trim().to_string()
 }
 
-fn parse_multiline() -> String {
+fn parse_multiline(cmd_history: &mut history::History) -> String {
     let mut arg = String::new();
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
 
         let user_input = get_line();
-
+        
+        cmd_history.add_to_string(user_input.clone());
+        
         if let Some(c) = user_input.chars().last() {
             if c != '\\' {
                 arg += &user_input.to_string();
@@ -55,6 +59,10 @@ fn parse_multiline() -> String {
 
 pub fn parse_input() -> VecDeque<Command> {
     let user_input = get_line();
+
+    let mut cmd_history = history::init();
+    cmd_history.add_to_string(user_input.clone());
+    cmd_history.set_cursor(user_input.len());
 
     let cmd_vec: Vec<_> = user_input.split("|").collect();
     
@@ -75,7 +83,7 @@ pub fn parse_input() -> VecDeque<Command> {
                     if c == '\\' {
                         let args_len = command.args.len();
                         command.args[args_len-1] = command.args[args_len-1].trim_end_matches('\\').to_string();
-                        command.args[args_len-1] += &parse_multiline();
+                        command.args[args_len-1] += &parse_multiline(&mut cmd_history);
                     }
                 }
             }
@@ -93,6 +101,8 @@ pub fn parse_input() -> VecDeque<Command> {
 
         commands.push_back(command);
     }
+
+    cmd_history.write_history();
 
     commands
 }
