@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use crossterm::{
     event::{self, KeyCode, KeyEvent, KeyModifiers, Event},
     execute,
-    cursor::{MoveTo, position},
+    cursor::{MoveTo, MoveLeft, MoveRight, position},
     terminal::{ClearType, Clear},
 };
 
@@ -25,6 +25,21 @@ impl Command {
     }
 }
 
+fn print_text(text: &String, with_clear: bool, with_newline_before: bool) {
+    let pos = get_cursor_position();
+
+    if with_clear {
+        execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+    }
+    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+    if with_newline_before {
+        print!("\n$ {}", text);
+    }else {
+        print!("$ {}", text); 
+    }
+    io::stdout().flush().unwrap();
+}
+
 fn get_cursor_position() -> [u16; 2] {
     let pos = position().expect("Problem while getting cursor pos");
 
@@ -37,6 +52,25 @@ fn get_line() -> String {
     crossterm::terminal::enable_raw_mode().expect("Problem with entering raw mode");
 
     while let Event::Key(KeyEvent { code, modifiers, .. }) = event::read().unwrap() {
+        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
+            print_text(&"exit".to_string(), true, false);
+
+            crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
+            exit(0);
+        }
+
+        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('a') {
+            let pos = get_cursor_position();
+            execute!(std::io::stdout(), MoveTo(2, pos[1])).expect("Problem with moving cursor");
+            continue;
+        } 
+
+        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
+            print_text(&"".to_string(), false, true);
+            continue;
+        } 
+
+
         match code {
             KeyCode::Enter => {
                 crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
@@ -47,23 +81,40 @@ fn get_line() -> String {
 
                 if pos[0] > 2 {
                     user_input.remove((pos[0] - 3) as usize);
-                    execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
-                    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-                    print!("$ {}", user_input);
-                    io::stdout().flush().unwrap();
+
+                    print_text(&user_input, true, false);
+                }
+            }
+            KeyCode::Left => {
+                let pos = get_cursor_position();
+
+                if pos[0] > 2 {
+                    execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
+                }
+            }
+            KeyCode::Right => {
+                let pos = get_cursor_position();
+
+                if usize::from(pos[0]) <= user_input.len() + 1 {
+                    execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
                 }
             }
             KeyCode::Char(c) => {
-                print!("{}", c);
-                io::stdout().flush().unwrap();
+                let pos = get_cursor_position();
+                if usize::from(pos[0] - 2) < user_input.len() {
+                   user_input.insert(usize::from(pos[0] - 2), c);
 
-                user_input.push(c)
+                   print_text(&user_input, true, false);
+
+                   execute!(std::io::stdout(), MoveTo(pos[0] + 1, pos[1])).expect("Problem with moving cursor");
+                }else{
+                    print!("{}", c);
+                    io::stdout().flush().unwrap();
+                    user_input.push(c)   
+                }
+
             }
             _ => {}
-        }
-
-        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
-            exit(0);
         }
     }
 
@@ -73,7 +124,7 @@ fn get_line() -> String {
 fn parse_multiline() -> String {
     let mut arg = String::new();
     loop {
-        print!("> ");
+        print!("\n> ");
         io::stdout().flush().unwrap();
 
         let user_input = get_line();
