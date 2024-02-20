@@ -4,6 +4,7 @@ use ctrlc;
 
 mod executor;
 mod parser;
+mod history;
 
 fn main() {
     ctrlc::set_handler(move || {

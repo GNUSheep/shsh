@@ -6,7 +6,7 @@ use std::env;
 
 use crate::parser;
 
-fn get_env(name: String) -> String {
+pub fn get_env(name: String) -> String {
     match env::var(name) {
         Ok(value) => return value,
         Err(_) => return " ".to_string(),
