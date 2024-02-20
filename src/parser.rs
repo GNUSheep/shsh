@@ -48,8 +48,10 @@ fn get_cursor_position() -> [u16; 2] {
     [pos.0, pos.1]
 }
 
-fn get_line() -> String {
+fn get_line(history: &mut history::History) -> String {
     let mut user_input = String::new();
+
+    let mut history_index: i32 = -1;
 
     crossterm::terminal::enable_raw_mode().expect("Problem with entering raw mode");
 
@@ -69,6 +71,7 @@ fn get_line() -> String {
 
         if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
             print_text(&"".to_string(), false, true);
+            history_index = -1;
             continue;
         } 
 
@@ -86,6 +89,27 @@ fn get_line() -> String {
 
                     print_text(&user_input, true, false);
                 }
+            }
+            KeyCode::Up => {
+                let lines_num = history::get_lines_num();
+                if lines_num as i32 <= history_index + 1 {
+                    user_input = "".to_string();
+                    history_index = (lines_num) as i32;
+                }else {
+                    history_index += 1;
+                    user_input = history.get_history(history_index);
+                }
+                print_text(&user_input, true, false);
+            }
+            KeyCode::Down => {
+                if history_index - 1 < 0 {
+                    user_input = "".to_string();
+                    history_index = -1;
+                }else{
+                    history_index -= 1;
+                    user_input = history.get_history(history_index);
+                }
+                print_text(&user_input, true, false);
             }
             KeyCode::Left => {
                 let pos = get_cursor_position();
@@ -129,7 +153,7 @@ fn parse_multiline(cmd_history: &mut history::History) -> String {
         print!("\n> ");
         io::stdout().flush().unwrap();
 
-        let user_input = get_line();
+        let user_input = get_line(cmd_history);
         
         cmd_history.add_to_string(user_input.clone());
         
@@ -145,11 +169,11 @@ fn parse_multiline(cmd_history: &mut history::History) -> String {
 }
 
 pub fn parse_input() -> VecDeque<Command> {
-    let user_input = get_line();
-
     let mut cmd_history = history::init();
+    
+    let user_input = get_line(&mut cmd_history);
+    
     cmd_history.add_to_string(user_input.clone());
-    cmd_history.set_cursor(user_input.len());
 
     let cmd_vec: Vec<_> = user_input.split("|").collect();
     
