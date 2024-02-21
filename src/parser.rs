@@ -48,6 +48,35 @@ fn get_cursor_position() -> [u16; 2] {
     [pos.0, pos.1]
 }
 
+fn split_user_input(input: &mut String) -> Vec<String> {
+    let mut splited_input: Vec<String> = vec![];
+    let mut word = String::new();
+
+    let mut d_qoutes_occured = false;
+    for c in input.chars() {
+        match c {
+            ' ' => {
+                if !d_qoutes_occured {
+                    if !word.is_empty() {
+                        splited_input.push(word.clone());
+                        word.clear();
+                    }
+                }else{
+                    word.push(' ');
+                }
+            }
+            '"' => d_qoutes_occured = !d_qoutes_occured,
+            _ => word.push(c),
+        }
+    }
+
+    if !word.is_empty() {
+        splited_input.push(word.clone());
+    }
+
+    splited_input
+}
+
 fn get_line(history: &mut history::History) -> String {
     let mut user_input = String::new();
 
@@ -181,33 +210,29 @@ pub fn parse_input() -> VecDeque<Command> {
     for cmd in cmd_vec {
         let mut command: Command = Command::new();
 
-        if let Some((name, args)) = cmd
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .split_first()
-        {
-            command.name = name.to_string();
-            command.args = args.iter().map(|v| v.to_string()).collect();
+        let command_splited = split_user_input(&mut (cmd.to_string()));
 
-            if let Some(last_value) = args.last() {
-                if let Some(c) = last_value.chars().last() {
-                    if c == '\\' {
-                        let args_len = command.args.len();
-                        command.args[args_len-1] = command.args[args_len-1].trim_end_matches('\\').to_string();
-                        command.args[args_len-1] += &parse_multiline(&mut cmd_history);
-                    }
+        command.name = command_splited[0].clone();
+        command.args = command_splited[1..].to_vec();
+
+        if let Some(last_value) = command.args.last() {
+            if let Some(c) = last_value.chars().last() {
+                if c == '\\' {
+                    let args_len = command.args.len();
+                    command.args[args_len-1] = command.args[args_len-1].trim_end_matches('\\').to_string();
+                    command.args[args_len-1] += &parse_multiline(&mut cmd_history);
                 }
             }
+        }
 
-            if let Some(index) = command.args.iter().position(|v| v.contains('>')) {
-                if command.args[index].len() == 1 {
-                    command.redirect_file = command.args[index..index+2].concat()[1..].to_string();
-                    command.args.remove(index+1);
-                }else{
-                    command.redirect_file = command.args[index][1..].to_string();
-                }
-                command.args.remove(index);
+        if let Some(index) = command.args.iter().position(|v| v.contains('>')) {
+            if command.args[index].len() == 1 {
+                command.redirect_file = command.args[index..index+2].concat()[1..].to_string();
+                command.args.remove(index+1);
+            }else{
+                command.redirect_file = command.args[index][1..].to_string();
             }
+            command.args.remove(index);
         }
 
         commands.push_back(command);
