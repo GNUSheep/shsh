@@ -6,7 +6,7 @@ use crossterm::{
     event::{self, KeyCode, KeyEvent, KeyModifiers, Event},
     execute,
     cursor::{MoveTo, MoveLeft, MoveRight, position},
-    terminal::{ClearType, Clear},
+    terminal::{ClearType, Clear, size, DisableLineWrap, EnableLineWrap},
 };
 
 use crate::history;
@@ -84,96 +84,124 @@ fn get_line(history: &mut history::History) -> String {
 
     crossterm::terminal::enable_raw_mode().expect("Problem with entering raw mode");
 
-    while let Event::Key(KeyEvent { code, modifiers, .. }) = event::read().unwrap() {
-        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
-            print_text(&"exit".to_string(), true, false);
+    execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
 
-            crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
-            exit(0);
+    let (col, _) = size().unwrap();
+    let mut slide_left_offset: usize = 0;
+
+    loop {
+        let event = event::read().unwrap();
+        match event {
+            Event::Key(KeyEvent { code, modifiers, .. }) => {
+                if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
+                    print_text(&"exit".to_string(), true, false);
+        
+                    crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
+                    execute!(std::io::stdout(), EnableLineWrap).expect("Problem with enabling line wrap");
+                    exit(0);
+                }
+        
+                if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('a') {
+                    let pos = get_cursor_position();
+                    execute!(std::io::stdout(), MoveTo(2, pos[1])).expect("Problem with moving cursor");
+                    continue;
+                } 
+        
+                if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
+                    print_text(&"".to_string(), false, true);
+                    user_input.clear();
+                    history_index = -1;
+                    continue;
+                } 
+        
+        
+                match code {
+                    KeyCode::Enter => {
+                        crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
+                        execute!(std::io::stdout(), EnableLineWrap).expect("Problem with enabling line wrap");
+                        return user_input.to_string();
+                    }
+                    KeyCode::Backspace => {
+                        let pos = get_cursor_position();
+        
+                        if pos[0] > 2 {
+                            user_input.remove((pos[0] - 3) as usize);
+        
+                            print_text(&user_input, true, false);
+                        }
+                    }
+                    KeyCode::Up => {
+                        let lines_num = history::get_lines_num();
+                        if lines_num as i32 <= history_index + 1 {
+                            user_input = "".to_string();
+                            history_index = (lines_num) as i32;
+                        }else {
+                            history_index += 1;
+                            user_input = history.get_history(history_index);
+                        }
+                        print_text(&user_input, true, false);
+                    }
+                    KeyCode::Down => {
+                        if history_index - 1 < 0 {
+                            user_input = "".to_string();
+                            history_index = -1;
+                        }else{
+                            history_index -= 1;
+                            user_input = history.get_history(history_index);
+                        }
+                        print_text(&user_input, true, false);
+                    }
+                    KeyCode::Left => {
+                        let pos = get_cursor_position();
+        
+                        if usize::from(pos[0]) + slide_left_offset > 2 {
+                            execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
+                        }
+                    }
+                    KeyCode::Right => {
+                        let pos = get_cursor_position();
+
+                        if usize::from(pos[0]) + slide_left_offset <= user_input.len() + 1 {
+                            execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        let pos = get_cursor_position();
+
+                        if usize::from(pos[0]) + slide_left_offset - 2 < user_input.len() {
+                            user_input.insert(usize::from(pos[0]) + slide_left_offset - 2, c);
+        
+                            let pos_x = pos[0];
+                            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with clearing line");
+                            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                            print!("{}", user_input[slide_left_offset - 2..].to_string());
+                            io::stdout().flush().unwrap();
+
+                            execute!(std::io::stdout(), MoveTo(pos_x + 1, pos[1])).expect("Problem with moving cursor");
+                        }else{
+                            print!("{}", c);
+                            io::stdout().flush().unwrap();
+                            user_input.push(c)   
+                        }
+        
+                    }
+                    _ => {}
+                }
+            }
+            _ => {},
         }
 
-        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('a') {
-            let pos = get_cursor_position();
-            execute!(std::io::stdout(), MoveTo(2, pos[1])).expect("Problem with moving cursor");
-            continue;
-        } 
+        let pos = get_cursor_position();
 
-        if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
-            print_text(&"".to_string(), false, true);
-            history_index = -1;
-            continue;
-        } 
-
-
-        match code {
-            KeyCode::Enter => {
-                crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
-                return user_input.to_string();
-            }
-            KeyCode::Backspace => {
-                let pos = get_cursor_position();
-
-                if pos[0] > 2 {
-                    user_input.remove((pos[0] - 3) as usize);
-
-                    print_text(&user_input, true, false);
-                }
-            }
-            KeyCode::Up => {
-                let lines_num = history::get_lines_num();
-                if lines_num as i32 <= history_index + 1 {
-                    user_input = "".to_string();
-                    history_index = (lines_num) as i32;
-                }else {
-                    history_index += 1;
-                    user_input = history.get_history(history_index);
-                }
-                print_text(&user_input, true, false);
-            }
-            KeyCode::Down => {
-                if history_index - 1 < 0 {
-                    user_input = "".to_string();
-                    history_index = -1;
-                }else{
-                    history_index -= 1;
-                    user_input = history.get_history(history_index);
-                }
-                print_text(&user_input, true, false);
-            }
-            KeyCode::Left => {
-                let pos = get_cursor_position();
-
-                if pos[0] > 2 {
-                    execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
-                }
-            }
-            KeyCode::Right => {
-                let pos = get_cursor_position();
-
-                if usize::from(pos[0]) <= user_input.len() + 1 {
-                    execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
-                }
-            }
-            KeyCode::Char(c) => {
-                let pos = get_cursor_position();
-                if usize::from(pos[0] - 2) < user_input.len() {
-                   user_input.insert(usize::from(pos[0] - 2), c);
-
-                   print_text(&user_input, true, false);
-
-                   execute!(std::io::stdout(), MoveTo(pos[0] + 1, pos[1])).expect("Problem with moving cursor");
-                }else{
-                    print!("{}", c);
-                    io::stdout().flush().unwrap();
-                    user_input.push(c)   
-                }
-
-            }
-            _ => {}
+        if pos[0] == col - 1 {
+            // terminal width acording
+            slide_left_offset += 30;
+            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with clearing line");
+            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+            print!("{}", user_input[slide_left_offset - 2..].to_string());
+            io::stdout().flush().unwrap();
         }
     }
-
-    user_input.trim().to_string()
 }
 
 fn parse_multiline(cmd_history: &mut history::History) -> String {
