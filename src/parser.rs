@@ -27,18 +27,23 @@ impl Command {
     }
 }
 
-fn print_text(text: &String, with_clear: bool, with_newline_before: bool) {
+fn print_text(text: &String, with_prompt: bool, with_clear: bool, with_newline_before: bool) {
     let pos = get_cursor_position();
 
     if with_clear {
         execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
     }
     execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-    if with_newline_before {
+    if with_newline_before && with_prompt {
         print!("\n$ {}", text);
-    }else {
+    }else if with_prompt {
         print!("$ {}", text); 
     }
+
+    if !with_prompt {
+        print!("{}", text)
+    }
+
     io::stdout().flush().unwrap();
 }
 
@@ -87,14 +92,14 @@ fn get_line(history: &mut history::History) -> String {
     execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
 
     let (col, _) = size().unwrap();
-    let mut slide_left_offset: usize = 0;
+    let mut slide_left_offset: usize = 2;
 
     loop {
         let event = event::read().unwrap();
         match event {
             Event::Key(KeyEvent { code, modifiers, .. }) => {
                 if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('d') {
-                    print_text(&"exit".to_string(), true, false);
+                    print_text(&"exit".to_string(), true, true, false);
         
                     crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
                     execute!(std::io::stdout(), EnableLineWrap).expect("Problem with enabling line wrap");
@@ -108,7 +113,7 @@ fn get_line(history: &mut history::History) -> String {
                 } 
         
                 if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
-                    print_text(&"".to_string(), false, true);
+                    print_text(&"".to_string(), true, false, true);
                     user_input.clear();
                     history_index = -1;
                     continue;
@@ -124,10 +129,18 @@ fn get_line(history: &mut history::History) -> String {
                     KeyCode::Backspace => {
                         let pos = get_cursor_position();
         
-                        if pos[0] > 2 {
+                        if slide_left_offset == 2 && pos[0] > 2 {
                             user_input.remove((pos[0] - 3) as usize);
         
-                            print_text(&user_input, true, false);
+                            print_text(&user_input, true, true, false);
+                            execute!(std::io::stdout(), MoveTo(pos[0] - 1, pos[1])).expect("Problem with moving cursor");
+                        }
+
+                        if slide_left_offset != 2 {
+                            user_input.remove((pos[0]) as usize + slide_left_offset - 3);
+
+                            print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
+                            execute!(std::io::stdout(), MoveTo(pos[0] - 1, pos[1])).expect("Problem with moving cursor");
                         }
                     }
                     KeyCode::Up => {
@@ -139,7 +152,7 @@ fn get_line(history: &mut history::History) -> String {
                             history_index += 1;
                             user_input = history.get_history(history_index);
                         }
-                        print_text(&user_input, true, false);
+                        print_text(&user_input, true, true, false);
                     }
                     KeyCode::Down => {
                         if history_index - 1 < 0 {
@@ -149,35 +162,44 @@ fn get_line(history: &mut history::History) -> String {
                             history_index -= 1;
                             user_input = history.get_history(history_index);
                         }
-                        print_text(&user_input, true, false);
+                        print_text(&user_input, true, true, false);
                     }
                     KeyCode::Left => {
                         let pos = get_cursor_position();
         
-                        if usize::from(pos[0]) + slide_left_offset > 2 {
+                        if slide_left_offset == 2 && usize::from(pos[0]) > 2 {
                             execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
                         }
+
+                        if slide_left_offset != 2 {
+                            execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
+                        }
+
                     }
                     KeyCode::Right => {
                         let pos = get_cursor_position();
 
-                        if usize::from(pos[0]) + slide_left_offset <= user_input.len() + 1 {
+                        if slide_left_offset == 2 && usize::from(pos[0]) <= user_input.len() + 1 {
+                            execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
+                        }
+
+                        if slide_left_offset != 2 && usize::from(pos[0]) + slide_left_offset <= user_input.len() + 1 {
                             execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
                         }
                     }
                     KeyCode::Char(c) => {
                         let pos = get_cursor_position();
 
-                        if usize::from(pos[0]) + slide_left_offset - 2 < user_input.len() {
-                            user_input.insert(usize::from(pos[0]) + slide_left_offset - 2, c);
-        
-                            let pos_x = pos[0];
-                            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with clearing line");
-                            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-                            print!("{}", user_input[slide_left_offset - 2..].to_string());
-                            io::stdout().flush().unwrap();
+                        if usize::from(pos[0]) + slide_left_offset - 4 < user_input.len() {
+                            if slide_left_offset == 2 {
+                                user_input.insert(usize::from(pos[0]) + slide_left_offset - 4, c);
+                                print_text(&user_input[slide_left_offset - 2..].to_string(), true, true, false);
+                            }else{
+                                user_input.insert(usize::from(pos[0]) + slide_left_offset - 2, c);
+                                print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
+                            }
 
-                            execute!(std::io::stdout(), MoveTo(pos_x + 1, pos[1])).expect("Problem with moving cursor");
+                            execute!(std::io::stdout(), MoveTo(pos[0] + 1, pos[1])).expect("Problem with moving cursor");
                         }else{
                             print!("{}", c);
                             io::stdout().flush().unwrap();
@@ -190,16 +212,19 @@ fn get_line(history: &mut history::History) -> String {
             }
             _ => {},
         }
-
         let pos = get_cursor_position();
-
         if pos[0] == col - 1 {
-            // terminal width acording
             slide_left_offset += 30;
-            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with clearing line");
-            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-            print!("{}", user_input[slide_left_offset - 2..].to_string());
-            io::stdout().flush().unwrap();
+            print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
+        }
+
+        if pos[0] == 0 {
+            slide_left_offset -= 30;
+            if slide_left_offset == 2 {
+                print_text(&user_input[slide_left_offset - 2..].to_string(), true, true, false);
+            }else {
+                print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
+            }
         }
     }
 }
