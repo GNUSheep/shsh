@@ -4,6 +4,8 @@ use std::path::Path;
 use std::fs::File;
 use std::env;
 
+use regex::Regex;
+
 use crate::parser;
 
 pub fn get_env(name: String) -> String {
@@ -45,6 +47,20 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
             }
             "ls" => cmd.args.push("--color=auto".to_string()),
             "grep" => cmd.args.push("--color=auto".to_string()),
+            "export" => {
+                let pattern = Regex::new("[A-Za-z0-9]+=[A-Za-z0-9]+").unwrap();
+                for arg in cmd.args {
+                    if pattern.is_match(&arg) {
+                        let args: Vec<_> = arg.split('=').collect();
+
+                        env::set_var(args[0], args[1]);
+                    }else {
+                        println!("Wrong command usage");
+                        return
+                    }
+                }
+                return
+            }
             "" => return,
             "exit" => exit(0),
             _ => (),

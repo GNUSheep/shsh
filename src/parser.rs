@@ -8,8 +8,10 @@ use crossterm::{
     cursor::{MoveTo, MoveLeft, MoveRight, position},
     terminal::{ClearType, Clear, size, DisableLineWrap, EnableLineWrap},
 };
+use regex::{Captures, Regex};
 
 use crate::history;
+use crate::executor;
 
 pub struct Command {
     pub name: String,
@@ -267,6 +269,18 @@ pub fn parse_input() -> VecDeque<Command> {
 
         command.name = command_splited[0].clone();
         command.args = command_splited[1..].to_vec();
+
+        let pattern = Regex::new("[$^][A-Za-z0-9]+").unwrap();
+
+        command.name = pattern.replace_all(&command.name, |c: &Captures| {
+            format!("{}", executor::get_env((&c[0])[1..].to_string()))
+        }).to_string();
+
+        for arg in &mut command.args {
+            *arg = pattern.replace_all(arg, |c: &Captures| {
+                format!("{}", executor::get_env((&c[0])[1..].to_string()))
+            }).to_string();
+        }
 
         if let Some(last_value) = command.args.last() {
             if let Some(c) = last_value.chars().last() {
