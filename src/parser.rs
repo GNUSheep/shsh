@@ -12,6 +12,7 @@ use regex::{Captures, Regex};
 
 use crate::history;
 use crate::executor;
+use crate::autocompletion;
 
 pub struct Command {
     pub name: String,
@@ -84,7 +85,7 @@ fn split_user_input(input: &mut String) -> Vec<String> {
     splited_input
 }
 
-fn get_line(history: &mut history::History) -> String {
+fn get_line(history: &mut history::History, completion: &autocompletion::Completion) -> String {
     let mut user_input = String::new();
 
     let mut history_index: i32 = -1;
@@ -189,6 +190,34 @@ fn get_line(history: &mut history::History) -> String {
                             execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
                         }
                     }
+                    KeyCode::Tab => {
+                        if !user_input.contains(" ") {
+                            print_text(&user_input, true, false, true);
+                            
+                            let mut cmds = completion.find_completion(&user_input);
+
+                            cmds.sort();
+                            let cmds_chunks: Vec<_> = cmds.chunks(2).collect(); 
+
+                            let max_cmds_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
+
+                            for chunk in cmds_chunks {
+                                let pos = get_cursor_position();
+                                execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                                for cmd in chunk {
+                                    print!("{:<len$}\t", cmd, len = max_cmds_length);
+                                }
+                                print!("\n");
+                                io::stdout().flush().unwrap();
+                            }
+
+                            let pos = get_cursor_position();
+                            execute!(std::io::stdout(), MoveTo(0, pos[0] - 1)).expect("Problem with moving cursor");
+                            print_text(&user_input, true, false, true);
+
+                            continue
+                        }
+                    }
                     KeyCode::Char(c) => {
                         let pos = get_cursor_position();
 
@@ -207,7 +236,6 @@ fn get_line(history: &mut history::History) -> String {
                             io::stdout().flush().unwrap();
                             user_input.push(c)   
                         }
-        
                     }
                     _ => {}
                 }
@@ -231,13 +259,13 @@ fn get_line(history: &mut history::History) -> String {
     }
 }
 
-fn parse_multiline(cmd_history: &mut history::History) -> String {
+fn parse_multiline(cmd_history: &mut history::History, completion: &autocompletion::Completion) -> String {
     let mut arg = String::new();
     loop {
         print!("\n> ");
         io::stdout().flush().unwrap();
 
-        let user_input = get_line(cmd_history);
+        let user_input = get_line(cmd_history, completion);
         
         cmd_history.add_to_string(user_input.clone());
         
@@ -252,10 +280,10 @@ fn parse_multiline(cmd_history: &mut history::History) -> String {
     arg
 }
 
-pub fn parse_input() -> VecDeque<Command> {
+pub fn parse_input(completion: &autocompletion::Completion) -> VecDeque<Command> {
     let mut cmd_history = history::init();
     
-    let user_input = get_line(&mut cmd_history);
+    let user_input = get_line(&mut cmd_history, completion);
     
     cmd_history.add_to_string(user_input.clone());
 
@@ -287,7 +315,7 @@ pub fn parse_input() -> VecDeque<Command> {
                 if c == '\\' {
                     let args_len = command.args.len();
                     command.args[args_len-1] = command.args[args_len-1].trim_end_matches('\\').to_string();
-                    command.args[args_len-1] += &parse_multiline(&mut cmd_history);
+                    command.args[args_len-1] += &parse_multiline(&mut cmd_history, completion);
                 }
             }
         }
