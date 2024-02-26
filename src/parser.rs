@@ -97,6 +97,9 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
     let (col, _) = size().unwrap();
     let mut slide_left_offset: usize = 2;
 
+    let mut tab_counter = 0;
+    let mut tab_cmd_complete = String::new();
+
     loop {
         let event = event::read().unwrap();
         match event {
@@ -119,6 +122,7 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     print_text(&"".to_string(), true, false, true);
                     user_input.clear();
                     history_index = -1;
+                    tab_counter = 0;
                     continue;
                 } 
         
@@ -131,6 +135,7 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     }
                     KeyCode::Backspace => {
                         let pos = get_cursor_position();
+                        tab_counter = 0;
         
                         if slide_left_offset == 2 && pos[0] > 2 {
                             user_input.remove((pos[0] - 3) as usize);
@@ -147,6 +152,8 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                         }
                     }
                     KeyCode::Up => {
+                        tab_counter = 0;
+
                         let lines_num = history::get_lines_num();
                         if lines_num as i32 <= history_index + 1 {
                             user_input = "".to_string();
@@ -158,6 +165,8 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                         print_text(&user_input, true, true, false);
                     }
                     KeyCode::Down => {
+                        tab_counter = 0;
+
                         if history_index - 1 < 0 {
                             user_input = "".to_string();
                             history_index = -1;
@@ -191,35 +200,66 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                         }
                     }
                     KeyCode::Tab => {
+                        tab_counter += 1;
+                        if tab_counter == 1 {
+                            tab_cmd_complete = user_input.clone();
+                        }
+
                         if !user_input.contains(" ") {
-                            print_text(&user_input, true, false, true);
-                            
+                            if tab_counter > 1 {
+                                let mut cmds = completion.find_completion(&tab_cmd_complete);
+                                cmds.sort();
+
+                                if cmds.len() == 0 {
+                                    continue
+                                }
+
+                                if tab_counter == cmds.len() + 2 {
+                                    tab_counter = 2;
+                                } 
+                                user_input = cmds[tab_counter - 2].clone();
+
+                                print_text(&user_input, true, true, false);
+                                continue
+                            }
+
                             let mut cmds = completion.find_completion(&user_input);
+
+                            if cmds.len() == 1 {
+                                user_input = cmds[0].clone();
+                                print_text(&user_input, true, true, false);
+                                continue
+                            }
+
+                            if cmds.len() == 0 {
+                                continue
+                            }
 
                             cmds.sort();
                             let cmds_chunks: Vec<_> = cmds.chunks(2).collect(); 
 
                             let max_cmds_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-
+                            
+                            print_text(&user_input, true, true, false);
+                            print_text(&"\n".to_string(), false, false, false);
                             for chunk in cmds_chunks {
                                 let pos = get_cursor_position();
-                                execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                                execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
                                 for cmd in chunk {
                                     print!("{:<len$}\t", cmd, len = max_cmds_length);
                                 }
                                 print!("\n");
                                 io::stdout().flush().unwrap();
                             }
-
-                            let pos = get_cursor_position();
-                            execute!(std::io::stdout(), MoveTo(0, pos[0] - 1)).expect("Problem with moving cursor");
-                            print_text(&user_input, true, false, true);
+                            print_text(&user_input, true, true, false);
 
                             continue
                         }
                     }
                     KeyCode::Char(c) => {
                         let pos = get_cursor_position();
+
+                        tab_counter = 0;
 
                         if usize::from(pos[0]) + slide_left_offset - 4 < user_input.len() {
                             if slide_left_offset == 2 {
