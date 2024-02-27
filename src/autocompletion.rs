@@ -1,5 +1,6 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::env;
 
 use crate::executor;
 
@@ -54,5 +55,19 @@ impl Completion {
             .collect();
         
         completions
+    }
+
+    pub fn get_paths(&self, dir: String) -> Vec<String> {
+        let dirs_in_path = fs::read_dir(dir).expect("Failed to read directory")
+            .map(|entry| {
+                entry
+                    .expect("Failed to get directory entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+
+        dirs_in_path
     }
 }

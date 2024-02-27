@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::process::exit;
 use std::collections::VecDeque;
+use std::fs;
 
 use crossterm::{
     event::{self, KeyCode, KeyEvent, KeyModifiers, Event},
@@ -21,7 +22,7 @@ pub struct Command {
 }
 
 impl Command {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let name = String::new();
         let args: Vec<String> = vec![];
         let redirect_file = String::new();
@@ -201,11 +202,12 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     }
                     KeyCode::Tab => {
                         tab_counter += 1;
-                        if tab_counter == 1 {
-                            tab_cmd_complete = user_input.clone();
-                        }
 
                         if !user_input.contains(" ") {
+                            if tab_counter == 1 {
+                                tab_cmd_complete = user_input.clone();
+                            }
+
                             if tab_counter > 1 {
                                 let mut cmds = completion.find_completion(&tab_cmd_complete);
                                 cmds.sort();
@@ -254,6 +256,40 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                             print_text(&user_input, true, true, false);
 
                             continue
+                        }else {
+                            let split: Vec<_>  = user_input.split_whitespace().collect();
+                            let mut path: String = ".".to_string();
+                            
+                            if split.len() != 1 {
+                                path = split[split.len()-1].to_string();
+                            }
+
+                            if let Ok(metadata) = fs::metadata(path.clone()) {
+                                if !metadata.is_dir() {
+                                    continue
+                                }
+                            }else {
+                                continue
+                            }
+                            let dirs_completion = completion.get_paths(path);
+
+                            print!("\n");
+                            io::stdout().flush().unwrap();
+
+                            let pos = get_cursor_position();
+                            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                            
+                            for dir in dirs_completion {
+                                print!("{}  ", dir);
+                            }
+                            print!("\n");
+                            io::stdout().flush().unwrap();
+                            
+                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                            print_text(&user_input, true, true, false);
+
+                            continue
+
                         }
                     }
                     KeyCode::Char(c) => {
