@@ -360,11 +360,15 @@ pub fn parse_input(completion: &autocompletion::Completion) -> VecDeque<Command>
     let mut cmd_history = history::init();
     
     let user_input = get_line(&mut cmd_history, completion);
-    
+
+    if user_input.is_empty() {
+        return Default::default();
+    }
+
     cmd_history.add_to_string(user_input.clone());
 
     let cmd_vec: Vec<_> = user_input.split("|").collect();
-    
+
     let mut commands: VecDeque<Command> = Default::default();
     for cmd in cmd_vec {
         let mut command: Command = Command::new();
