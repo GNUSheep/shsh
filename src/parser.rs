@@ -96,7 +96,6 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
     execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
 
     let (col, _) = size().unwrap();
-    let mut slide_left_offset: usize = 2;
 
     let mut tab_counter = 0;
     let mut tab_cmd_complete = String::new();
@@ -126,8 +125,7 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     tab_counter = 0;
                     continue;
                 } 
-        
-        
+                
                 match code {
                     KeyCode::Enter => {
                         crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
@@ -137,20 +135,16 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     KeyCode::Backspace => {
                         let pos = get_cursor_position();
                         tab_counter = 0;
-        
-                        if slide_left_offset == 2 && pos[0] > 2 {
-                            user_input.remove((pos[0] - 3) as usize);
-        
-                            print_text(&user_input, true, true, false);
-                            execute!(std::io::stdout(), MoveTo(pos[0] - 1, pos[1])).expect("Problem with moving cursor");
-                        }
 
-                        if slide_left_offset != 2 {
-                            user_input.remove((pos[0]) as usize + slide_left_offset - 3);
-
-                            print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
-                            execute!(std::io::stdout(), MoveTo(pos[0] - 1, pos[1])).expect("Problem with moving cursor");
+                        if pos[0] - 1 < 2 {
+                           continue 
                         }
+        
+                        user_input.remove((pos[0] - 3) as usize);
+        
+                        print_text(&user_input, true, true, false);
+                        execute!(std::io::stdout(), MoveTo(pos[0] - 1, pos[1])).expect("Problem with moving cursor");
+
                     }
                     KeyCode::Up => {
                         tab_counter = 0;
@@ -179,26 +173,18 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                     }
                     KeyCode::Left => {
                         let pos = get_cursor_position();
-        
-                        if slide_left_offset == 2 && usize::from(pos[0]) > 2 {
+
+                        if pos[0] > 2 {
                             execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
                         }
-
-                        if slide_left_offset != 2 {
-                            execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
-                        }
-
                     }
                     KeyCode::Right => {
                         let pos = get_cursor_position();
 
-                        if slide_left_offset == 2 && usize::from(pos[0]) <= user_input.len() + 1 {
+                        if user_input.len() + 1 >= (pos[0]) as usize {                        
                             execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
-                        }
+                        } 
 
-                        if slide_left_offset != 2 && usize::from(pos[0]) + slide_left_offset <= user_input.len() + 1 {
-                            execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
-                        }
                     }
                     KeyCode::Tab => {
                         tab_counter += 1;
@@ -297,40 +283,22 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
 
                         tab_counter = 0;
 
-                        if usize::from(pos[0]) + slide_left_offset - 4 < user_input.len() {
-                            if slide_left_offset == 2 {
-                                user_input.insert(usize::from(pos[0]) + slide_left_offset - 4, c);
-                                print_text(&user_input[slide_left_offset - 2..].to_string(), true, true, false);
-                            }else{
-                                user_input.insert(usize::from(pos[0]) + slide_left_offset - 2, c);
-                                print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
-                            }
-
+                        if usize::from(pos[0] - 2) < user_input.len() {
+                            user_input.insert(usize::from(pos[0]) - 2, c);
+                            print_text(&user_input.to_string(), true, true, false);                            
+                                
                             execute!(std::io::stdout(), MoveTo(pos[0] + 1, pos[1])).expect("Problem with moving cursor");
                         }else{
                             print!("{}", c);
                             io::stdout().flush().unwrap();
-                            user_input.push(c)   
+                            user_input.push(c)
                         }
                     }
                     _ => {}
                 }
+
             }
             _ => {},
-        }
-        let pos = get_cursor_position();
-        if pos[0] == col - 1 {
-            slide_left_offset += 30;
-            print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
-        }
-
-        if pos[0] == 0 {
-            slide_left_offset -= 30;
-            if slide_left_offset == 2 {
-                print_text(&user_input[slide_left_offset - 2..].to_string(), true, true, false);
-            }else {
-                print_text(&user_input[slide_left_offset - 2..].to_string(), false, true, false);
-            }
         }
     }
 }
