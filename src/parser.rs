@@ -51,7 +51,43 @@ fn print_text(text: &String, with_prompt: bool, with_clear: bool, with_newline_b
     io::stdout().flush().unwrap();
 }
 
-fn get_cursor_position() -> [u16; 2] {
+fn render_text(text: String, begin_pos: [u16; 2]) {
+    let cur_pos = get_cursor_position();
+    let (col, row) = size().unwrap();
+
+    for i in 0..=text.len()/usize::from(col) {
+        execute!(std::io::stdout(), MoveTo(0, begin_pos[1] + i as u16)).expect("Problem with moving cursor");
+        execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+    }
+
+    execute!(std::io::stdout(), MoveTo(0, begin_pos[1])).expect("Problem with moving cursor");
+    print!("$ ");
+    execute!(std::io::stdout(), MoveTo(2, begin_pos[1])).expect("Problem with moving cursor");
+
+    let mut offset_end = 0;
+    for i in 0..text.len()/usize::from(col) {
+        print!("{}", &text[offset_end..(i+1)*usize::from(col)]);
+        let pos = get_cursor_position();
+        
+        execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+        offset_end = (i+1)*usize::from(col);
+
+        if row <= pos[1] + 1 {
+            print!("\n");
+        }
+    }
+    
+    if text.len()/usize::from(col) == 0 {
+        print!("{}", text);
+    }else {
+        print!("{}", &text[offset_end..]);
+    }
+    
+    execute!(std::io::stdout(), MoveTo(cur_pos[0] + 1, cur_pos[1])).expect("Problem with moving cursor");
+    io::stdout().flush().unwrap();
+}
+
+pub fn get_cursor_position() -> [u16; 2] {
     let pos = position().expect("Problem while getting cursor pos");
 
     [pos.0, pos.1]
@@ -86,7 +122,7 @@ fn split_user_input(input: &mut String) -> Vec<String> {
     splited_input
 }
 
-fn get_line(history: &mut history::History, completion: &autocompletion::Completion) -> String {
+fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &autocompletion::Completion) -> String {
     let mut user_input = String::new();
 
     let mut history_index: i32 = -1;
@@ -94,8 +130,8 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
     crossterm::terminal::enable_raw_mode().expect("Problem with entering raw mode");
 
     execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
-
-    let (col, _) = size().unwrap();
+                        
+    let (mut col, _) = size().unwrap();
 
     let mut tab_counter = 0;
     let mut tab_cmd_complete = String::new();
@@ -119,15 +155,12 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
                 } 
         
                 if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
-                    print_text(&"".to_string(), true, false, true);
                     user_input.clear();
-                    history_index = -1;
-                    tab_counter = 0;
-                    continue;
+                    return user_input;
                 } 
                 
                 match code {
-                    KeyCode::Enter => {
+                    KeyCode::Enter => {                        
                         crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
                         execute!(std::io::stdout(), EnableLineWrap).expect("Problem with enabling line wrap");
                         return user_input.to_string();
@@ -283,33 +316,24 @@ fn get_line(history: &mut history::History, completion: &autocompletion::Complet
 
                         tab_counter = 0;
 
-                        if usize::from(pos[0] - 2) < user_input.len() {
-                            user_input.insert(usize::from(pos[0]) - 2, c);
-                            print_text(&user_input.to_string(), true, true, false);                            
-                                
-                            execute!(std::io::stdout(), MoveTo(pos[0] + 1, pos[1])).expect("Problem with moving cursor");
-                        }else{
-                            print!("{}", c);
-                            io::stdout().flush().unwrap();
-                            user_input.push(c)
-                        }
+                        user_input.push(c);
+                        render_text(user_input.clone(), begin_pos);
                     }
                     _ => {}
                 }
-
             }
             _ => {},
         }
     }
 }
 
-fn parse_multiline(cmd_history: &mut history::History, completion: &autocompletion::Completion) -> String {
+fn parse_multiline(begin_pos: [u16; 2], cmd_history: &mut history::History, completion: &autocompletion::Completion) -> String {
     let mut arg = String::new();
     loop {
         print!("\n> ");
         io::stdout().flush().unwrap();
 
-        let user_input = get_line(cmd_history, completion);
+        let user_input = get_line(begin_pos.clone(), cmd_history, completion);
         
         cmd_history.add_to_string(user_input.clone());
         
@@ -326,8 +350,10 @@ fn parse_multiline(cmd_history: &mut history::History, completion: &autocompleti
 
 pub fn parse_input(completion: &autocompletion::Completion) -> VecDeque<Command> {
     let mut cmd_history = history::init();
+
+    let pos = get_cursor_position();
     
-    let user_input = get_line(&mut cmd_history, completion);
+    let user_input = get_line(pos, &mut cmd_history, completion);
 
     if user_input.is_empty() {
         return Default::default();
@@ -363,7 +389,7 @@ pub fn parse_input(completion: &autocompletion::Completion) -> VecDeque<Command>
                 if c == '\\' {
                     let args_len = command.args.len();
                     command.args[args_len-1] = command.args[args_len-1].trim_end_matches('\\').to_string();
-                    command.args[args_len-1] += &parse_multiline(&mut cmd_history, completion);
+                    command.args[args_len-1] += &parse_multiline(pos, &mut cmd_history, completion);
                 }
             }
         }
