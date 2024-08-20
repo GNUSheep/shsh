@@ -54,9 +54,25 @@ fn print_text(text: &String, with_prompt: bool, with_clear: bool, with_newline_b
 fn clear_input(text: &String, begin_pos: [u16; 2], prompt: char) {
     let (col, _) = size().unwrap();
 
-    for i in 0..=(text.len()+2)/usize::from(col) {
+    let mut len_write = 0;
+    let mut i = 0;
+    let mut offset = 0;
+    while len_write != text.len() {
+        let pos = get_cursor_position();
+        
         execute!(std::io::stdout(), MoveTo(0, begin_pos[1] + i as u16)).expect("Problem with moving cursor");
+        
+        len_write = offset;
+        
+        offset = if offset + usize::from(col - pos[0]) < text.len() {
+            offset + usize::from(col - pos[0])    
+        }else {
+            offset + (text.len() - offset)
+        };
+       
         execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+    
+        i += 1;
     }
     
     execute!(std::io::stdout(), MoveTo(0, begin_pos[1])).expect("Problem with moving cursor");
@@ -70,28 +86,29 @@ fn render_text(text: String, mut begin_pos: [u16; 2], prompt: char) -> [u16; 2] 
 
     clear_input(&text, begin_pos, prompt);
 
-    let mut offset_end = 0;
-    for i in 0..(text.len()+2)/usize::from(col) {
-        print!("{}", &text[offset_end..(i+1)*(usize::from(col)-2)]);
-        let pos = get_cursor_position();
-        
-        execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-
-        if row <= pos[1] + 1 && usize::from(col) <= text[offset_end..(i+1)*usize::from(col)].len() + 1 {
-            print!("\n");
-            begin_pos[1] -= 1;
-            cur_pos[1] -= 1;
-        }
-        
-        offset_end = (i+1)*(usize::from(col)-2);
-    }
-    
-    if (text.len()+2)/usize::from(col) == 0 {
-        print!("{}", text);
+    let mut offset = if usize::from(col - begin_pos[0]) < text.len() {
+        usize::from(col - begin_pos[0])
     }else {
-        print!("{}", &text[offset_end..]);
+        text.len()
+    };
+
+    let mut len_write = 0;
+    while len_write != text.len() {
+        print!("{}", &text[len_write..offset]);
+        
+        let pos = get_cursor_position();
+        execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+        let pos = get_cursor_position();
+
+        len_write = offset;
+        
+        offset = if offset + usize::from(col - pos[0]) < text.len() {
+            offset + usize::from(col - pos[0])    
+        }else {
+            offset + (text.len() - offset)
+        };
     }
-    
+        
     execute!(std::io::stdout(), MoveTo(cur_pos[0], cur_pos[1])).expect("Problem with moving cursor");
     io::stdout().flush().unwrap();
 
@@ -351,15 +368,9 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
 
                         begin_pos = render_text(user_input.clone(), begin_pos, prompt);
                         execute!(std::io::stdout(), MoveTo(pos[0]+1, pos[1])).expect("Problem with moving cursor");
-
-                        let pos = get_cursor_position();
-                        if user_input.len() + 1 >= usize::from(pos[0]) + (offset * usize::from(col)) {
-                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                            offset += 1;
-                        }
                     }
                     _ => {}
-                }
+                }            
             }
             _ => {},
         }
