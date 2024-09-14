@@ -72,6 +72,7 @@ fn render_text(text: &String, mut cur_pos: [u16; 2], mut offset: usize, leave_th
     };
 
     let mut len_write = 0;
+    let mut tmp_offset = 0;
     while len_write != text.len() {
         print!("{}", &text[len_write..end_index]);
         
@@ -81,6 +82,8 @@ fn render_text(text: &String, mut cur_pos: [u16; 2], mut offset: usize, leave_th
             print!("\n");
             offset += 1;
             cur_pos[1] -= 1;
+        } else {
+            tmp_offset += 1;
         }
 
         let old_pos = pos;
@@ -88,7 +91,7 @@ fn render_text(text: &String, mut cur_pos: [u16; 2], mut offset: usize, leave_th
         execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
         let pos = get_cursor_position();
 
-        len_write = end_index;        
+        len_write = end_index;
         
         end_index = if end_index + usize::from(col - pos[0]) < text.len() {
             end_index + usize::from(col - pos[0])    
@@ -99,7 +102,8 @@ fn render_text(text: &String, mut cur_pos: [u16; 2], mut offset: usize, leave_th
         if len_write == text.len() && leave_the_cursor {
             execute!(std::io::stdout(), MoveTo(old_pos[0], old_pos[1])).expect("Problem with moving cursor");
             cur_pos = old_pos;
-        } 
+            offset += tmp_offset - 1;
+        };
     }
     
     io::stdout().flush().unwrap();
@@ -193,13 +197,10 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                            continue 
                         }
 
-                        user_input.remove((pos[0] - 3) as usize);
+                        let pos_x_moved = (offset * col as usize + pos[0] as usize) - 3;
+                        user_input.remove(pos_x_moved);
 
-                        if offset == 0 {
-                            (pos, offset) = render_text(&user_input[usize::from(pos[0] - 3)..].to_string(), [pos[0] - 1, pos[1]], offset, false);
-                        }else {
-                            (pos, offset) = render_text(&user_input[usize::from(pos[0] - 1)..].to_string(), [pos[0] - 1, pos[1]], offset, false);
-                        }
+                        (pos, offset) = render_text(&user_input[pos_x_moved..].to_string(), [pos[0] - 1, pos[1]], offset, false);
 
                         execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
                     }
@@ -207,6 +208,7 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                         let mut pos = get_cursor_position();
                         tab_counter = 0;
 
+                        offset = 0;
                         clear_input(begin_pos, prompt);
 
                         let lines_num = history::get_lines_num();
@@ -220,12 +222,13 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                             }
                             user_input = history.get_history(history_index);
                         }
-                        (pos, offset) = render_text(&user_input, pos, offset, true);
+                        (pos, offset) = render_text(&user_input, begin_pos, offset, true);
                     }
                     KeyCode::Down => {
                         let mut pos = get_cursor_position();
                         tab_counter = 0;
 
+                        offset = 0;
                         clear_input(begin_pos, prompt);
                         
                         if history_index - 1 < 0 {
@@ -243,17 +246,27 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                     KeyCode::Left => {
                         let pos = get_cursor_position();
 
-                        if pos[0] > 2 {
-                            execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
+                        if pos[0] <= 2 && offset == 0 {
+                            continue
                         }
+
+                        if pos[0] == 0 && offset != 0 {
+                            execute!(std::io::stdout(), MoveTo(col - 1, pos[1] - 1)).expect("Problem with moving cursor");
+                            offset -= 1;
+                            continue;
+                        }
+                        
+                        execute!(std::io::stdout(), MoveLeft(1)).expect("Problem with moving cursor");
                     }
                     KeyCode::Right => {
                         let pos = get_cursor_position();
 
-                        if user_input.len() + 1 >= (pos[0]) as usize {                        
+                        if user_input.len() + 1 >= offset * col as usize + (pos[0]) as usize {                        
                             execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
-                        } 
-
+                        }else if pos[0] + 1 >= col {
+                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                            offset += 1;
+                        }
                     }
                     KeyCode::Tab => {
                         tab_counter += 1;
@@ -353,7 +366,7 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                         tab_counter = 0;
 
                         if usize::from(pos[0]) + (offset * usize::from(col)) <= user_input.len() + 1 {
-                            user_input.insert(usize::from(pos[0])-2+(offset * usize::from(col)), c);       
+                            user_input.insert(usize::from(pos[0])+(offset * usize::from(col) - 2), c);       
                         }else {
                             user_input.push(c);
                         }
@@ -361,16 +374,16 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                         if offset == 0 {
                             (pos, offset) = render_text(&user_input[usize::from(pos[0] - 2)..].to_string(), pos, offset, false);
                         }else {
-                            (pos, offset) = render_text(&user_input[usize::from(pos[0])..].to_string(), pos, offset, false);
+                            (pos, offset) = render_text(&user_input[usize::from(offset as u16 * col + pos[0]) - 2..].to_string(), pos, offset, false);
                         }
                         
                         execute!(std::io::stdout(), MoveTo(pos[0]+1, pos[1])).expect("Problem with moving cursor");
 
-                        // let pos = get_cursor_position();
-                        // if user_input.len() + 1 >= usize::from(pos[0]) + (offset * usize::from(col)) {
-                            // execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                            // offset += 1;
-                        // }                    
+                        let pos = get_cursor_position();
+                        if user_input.len() + 1 >= usize::from(pos[0]) + (offset * usize::from(col)) && pos[0] + 1 == col {
+                             execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("problem with moving cursor");
+                             offset += 1;
+                        }                    
                     }
                     _ => {}
                 }            
