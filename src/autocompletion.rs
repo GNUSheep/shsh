@@ -16,11 +16,11 @@ impl Completion {
 
     fn get_binaries(dir: String) -> Vec<String> {
         let mut binaries: Vec<String> = vec![];
-    
+
         if let Ok(files) = fs::read_dir(dir.clone()) {
             for file in files.flatten() {
                 let path = file.path();
-    
+
                 if path.is_file() && path.metadata().map(|m| m.permissions().mode() & 0o111 != 0).unwrap_or(false) {
                     binaries.push(file.file_name().into_string().unwrap());
                 }
@@ -28,7 +28,7 @@ impl Completion {
         } else {
             println!("Error while reading dir: {}", dir);
         }
-    
+
         binaries
 
     }
@@ -38,7 +38,7 @@ impl Completion {
         if path_env.is_empty() {
             panic!("Error getting $PATH");
         }
-    
+
         let path_dirs = path_env.split(":");
         for dir in path_dirs {
             let binaries = Self::get_binaries(dir.to_string());
@@ -52,7 +52,7 @@ impl Completion {
             .filter(|&e| e.starts_with(prefix))
             .cloned()
             .collect();
-        
+
         completions
     }
 

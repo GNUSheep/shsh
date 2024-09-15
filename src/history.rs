@@ -11,7 +11,7 @@ pub fn get_lines_num() -> usize {
             BufReader::new(f).lines().count()
         },
         Err(_) => panic!("Error with getting history, cannot open file"),
-    } 
+    }
 }
 
 pub struct History {

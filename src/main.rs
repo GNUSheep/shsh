@@ -20,12 +20,12 @@ fn main() {
 
     loop {
         let pos = get_cursor_position();
-        
+
         execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
         print!("$ ");
         io::stdout().flush().unwrap();
         execute!(std::io::stdout(), MoveTo(2, pos[1])).expect("Problem with moving cursor");
-        
+
         let command = parser::parse_input(&completion);
         println!();
         executor::exec_command(command);
