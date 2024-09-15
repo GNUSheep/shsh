@@ -25,7 +25,7 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
                 if path == "" {
                     path = "/".to_string();
                 }
-    
+
                 match cmd.args.len() {
                     0 => (),
                     1 => {
@@ -36,14 +36,14 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
                         return
                     }
                 };
-    
+
                 let path = Path::new(&path);
-    
+
                 if let Err(_) = env::set_current_dir(&path) {
                     println!("Problem with changing directory");
                 }
-    
-                return 
+
+                return
             }
             "ls" => cmd.args.push("--color=auto".to_string()),
             "grep" => cmd.args.push("--color=auto".to_string()),
@@ -65,7 +65,7 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
             "exit" => exit(0),
             _ => (),
         }
-    
+
         let stdin = prev_cmd.map_or(Stdio::inherit(), |out: Child| Stdio::from(out.stdout.unwrap()));
 
         let mut stdout = Stdio::inherit();
@@ -90,7 +90,7 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
                     .wait()
                     .expect("Problem with waiting for child");
                 prev_cmd = Some(child);
-                
+
             }
             Err(err) => {
                 println!("Problem with executing command: {}", err);

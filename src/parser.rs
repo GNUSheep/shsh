@@ -146,7 +146,7 @@ fn split_user_input(input: &mut String) -> Vec<String> {
     splited_input
 }
 
-fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion: &autocompletion::Completion, prompt: char, mut offset: usize) -> String {
+fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &autocompletion::Completion, prompt: char, mut offset: usize) -> String {
     let mut user_input = String::new();
 
     let mut history_index: i32 = -1;
@@ -155,7 +155,7 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
 
     execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
                         
-    let (mut col, _) = size().unwrap();
+    let (col, _) = size().unwrap();
 
     let mut tab_counter = 0;
     let mut tab_cmd_complete = String::new();
@@ -205,7 +205,6 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                         execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
                     }
                     KeyCode::Up => {
-                        let mut pos = get_cursor_position();
                         tab_counter = 0;
 
                         offset = 0;
@@ -222,10 +221,9 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                             }
                             user_input = history.get_history(history_index);
                         }
-                        (pos, offset) = render_text(&user_input, begin_pos, offset, true);
+                        (_, offset) = render_text(&user_input, begin_pos, offset, true);
                     }
                     KeyCode::Down => {
-                        let mut pos = get_cursor_position();
                         tab_counter = 0;
 
                         offset = 0;
@@ -241,7 +239,7 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                             }
                             user_input = history.get_history(history_index);
                         }
-                        (pos, offset) = render_text(&user_input, begin_pos, offset, true);
+                        (_, offset) = render_text(&user_input, begin_pos, offset, true);
                     }
                     KeyCode::Left => {
                         let pos = get_cursor_position();
@@ -261,11 +259,13 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                     KeyCode::Right => {
                         let pos = get_cursor_position();
 
-                        if user_input.len() + 1 >= offset * col as usize + (pos[0]) as usize {                        
+                        if user_input.len() + 1 >= offset * col as usize + (pos[0]) as usize {  
                             execute!(std::io::stdout(), MoveRight(1)).expect("Problem with moving cursor");
-                        }else if pos[0] + 1 >= col {
-                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                            offset += 1;
+                            
+                            if pos[0] + 1 >= col {
+                                execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                                offset += 1;
+                            }
                         }
                     }
                     KeyCode::Tab => {
@@ -366,7 +366,7 @@ fn get_line(mut begin_pos: [u16; 2], history: &mut history::History, completion:
                         tab_counter = 0;
 
                         if usize::from(pos[0]) + (offset * usize::from(col)) <= user_input.len() + 1 {
-                            user_input.insert(usize::from(pos[0])+(offset * usize::from(col) - 2), c);       
+                            user_input.insert(usize::from(pos[0])+(offset * usize::from(col)) - 2, c);       
                         }else {
                             user_input.push(c);
                         }
