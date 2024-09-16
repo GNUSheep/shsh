@@ -271,94 +271,122 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     KeyCode::Tab => {
                         tab_counter += 1;
 
-                        if !user_input.contains(" ") {
-                            if tab_counter == 1 {
-                                tab_cmd_complete = user_input.clone();
-                            }
-
-                            if tab_counter > 1 {
-                                let mut cmds = completion.find_completion(&tab_cmd_complete);
-                                cmds.sort();
-
-                                if cmds.len() == 0 {
-                                    continue
-                                }
-
-                                if tab_counter == cmds.len() + 2 {
-                                    tab_counter = 2;
-                                }
-                                user_input = cmds[tab_counter - 2].clone();
-
-                                print_text(&user_input, true, true, false);
-                                continue
-                            }
-
-                            let mut cmds = completion.find_completion(&user_input);
-
-                            if cmds.len() == 1 {
-                                user_input = cmds[0].clone();
-                                print_text(&user_input, true, true, false);
-                                continue
-                            }
-
-                            if cmds.len() == 0 {
-                                continue
-                            }
-
-                            cmds.sort();
-                            let cmds_chunks: Vec<_> = cmds.chunks(2).collect();
-
-                            let max_cmds_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-
-                            print_text(&user_input, true, true, false);
-                            print_text(&"\n".to_string(), false, false, false);
-                            for chunk in cmds_chunks {
-                                let pos = get_cursor_position();
-                                execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-                                for cmd in chunk {
-                                    print!("{:<len$}\t", cmd, len = max_cmds_length);
-                                }
-                                print!("\n");
-                                io::stdout().flush().unwrap();
-                            }
-                            print_text(&user_input, true, true, false);
-
+                        if user_input == "" {
                             continue
-                        }else {
-                            let split: Vec<_>  = user_input.split_whitespace().collect();
-                            let mut path: String = ".".to_string();
+                        }
 
-                            if split.len() != 1 {
-                                path = split[split.len()-1].to_string();
-                            }
-
-                            if let Ok(metadata) = fs::metadata(path.clone()) {
-                                if !metadata.is_dir() {
-                                    continue
-                                }
-                            }else {
-                                continue
-                            }
-                            let dirs_completion = completion.get_paths(path);
-
-                            print!("\n");
-                            io::stdout().flush().unwrap();
+                        if tab_counter == 1 {
+                            tab_cmd_complete = user_input.clone();
+                            let mut cmds = completion.find_completion(&user_input);
+                            cmds.sort();
 
                             let pos = get_cursor_position();
+                        
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
 
-                            for dir in dirs_completion {
-                                print!("{}  ", dir);
+                            let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
+                            let mut cols = 0;
+                            
+                            println!();
+                            for (i, cmd) in cmds.iter().enumerate() {
+                                print!("{:<24}", cmd);
+
+                                if (i + 1) % 4 == 0 && i != 0 {
+                                    println!();
+                                    let pos = get_cursor_position();
+                                    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                                }
+
                             }
-                            print!("\n");
+
+                            execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
+                            
                             io::stdout().flush().unwrap();
-
-                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                            print_text(&user_input, true, true, false);
-
-                            continue
-
                         }
+
+                        //     if tab_counter > 1 {
+                        //         let mut cmds = completion.find_completion(&tab_cmd_complete);
+                        //         cmds.sort();
+
+                        //         if cmds.len() == 0 {
+                        //             continue
+                        //         }
+
+                        //         if tab_counter == cmds.len() + 2 {
+                        //             tab_counter = 2;
+                        //         }
+                        //         user_input = cmds[tab_counter - 2].clone();
+
+                        //         print_text(&user_input, true, true, false);
+                        //         continue
+                        //     }
+
+                        // let mut cmds = completion.find_completion(&user_input);
+
+                        //     if cmds.len() == 1 {
+                        //         user_input = cmds[0].clone();
+                        //         print_text(&user_input, true, true, false);
+                        //         continue
+                        //     }
+
+                        //     if cmds.len() == 0 {
+                        //         continue
+                        //     }
+
+                        //     cmds.sort();
+                        //     let cmds_chunks: Vec<_> = cmds.chunks(2).collect();
+
+                        //     let max_cmds_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
+
+                        //     print_text(&user_input, true, true, false);
+                        //     print_text(&"\n".to_string(), false, false, false);
+                        //     for chunk in cmds_chunks {
+                        //         let pos = get_cursor_position();
+                        //         execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                        //         for cmd in chunk {
+                        //             print!("{:<len$}\t", cmd, len = max_cmds_length);
+                        //         }
+                        //         print!("\n");
+                        //         io::stdout().flush().unwrap();
+                        //     }
+                        //     print_text(&user_input, true, true, false);
+
+                        //     continue
+                        // }else {
+                        //     let split: Vec<_>  = user_input.split_whitespace().collect();
+                        //     let mut path: String = ".".to_string();
+
+                        //     if split.len() != 1 {
+                        //         path = split[split.len()-1].to_string();
+                        //     }
+
+                        //     if let Ok(metadata) = fs::metadata(path.clone()) {
+                        //         if !metadata.is_dir() {
+                        //             continue
+                        //         }
+                        //     }else {
+                        //         continue
+                        //     }
+                        //     let dirs_completion = completion.get_paths(path);
+
+                        //     print!("\n");
+                        //     io::stdout().flush().unwrap();
+
+                        //     let pos = get_cursor_position();
+                        //     execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+
+                        //     for dir in dirs_completion {
+                        //         print!("{}  ", dir);
+                        //     }
+                        //     print!("\n");
+                        //     io::stdout().flush().unwrap();
+
+                        //     execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                        //     print_text(&user_input, true, true, false);
+
+                        //     continue
+
+                        // }
                     }
                     KeyCode::Char(c) => {
                         let mut pos = get_cursor_position();
