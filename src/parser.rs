@@ -285,13 +285,13 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
 
                             let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-                            let mut cols = 0;
+                            let mut cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
                             
                             println!();
                             for (i, cmd) in cmds.iter().enumerate() {
-                                print!("{:<24}", cmd);
+                                print!("\x1b[1{:<width$}", cmd, width = max_cmd_length+4);    
 
-                                if (i + 1) % 4 == 0 && i != 0 {
+                                if (i + 1) % cols as usize == 0 && i != 0 {
                                     println!();
                                     let pos = get_cursor_position();
                                     execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
@@ -301,6 +301,32 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                             execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
                             
+                            io::stdout().flush().unwrap();
+                        }
+
+                        if tab_counter > 1 {
+                            let mut cmds = completion.find_completion(&tab_cmd_complete);
+                            cmds.sort();
+
+                            if cmds.len() == 0 {
+                                continue;
+                            }
+
+                            let pos = get_cursor_position();
+                            execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                            
+                            if tab_counter == cmds.len() + 2 {
+                                tab_counter = 2;
+                            }
+
+                            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+                            user_input = cmds[tab_counter - 2].clone();
+                            print!("{} {}", prompt, user_input);
+
+                            if cmds.len() == 0 {
+                                continue;
+                            }
+
                             io::stdout().flush().unwrap();
                         }
 
