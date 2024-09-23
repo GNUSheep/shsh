@@ -1,7 +1,6 @@
 use std::io::{self, Write};
 use std::process::exit;
 use std::collections::VecDeque;
-use std::fs;
 
 use crossterm::{
     event::{self, KeyCode, KeyEvent, KeyModifiers, Event},
@@ -155,9 +154,10 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
     execute!(std::io::stdout(), DisableLineWrap).expect("Problem with disabling line wrap");
 
-    let (col, _) = size().unwrap();
+    let (col, row) = size().unwrap();
 
     let mut tab_counter = 0;
+    let mut over_term = false;
     let mut tab_cmd_complete = String::new();
 
     loop {
@@ -192,6 +192,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     KeyCode::Backspace => {
                         let mut pos = get_cursor_position();
                         tab_counter = 0;
+                        over_term = false;
 
                         if pos[0] - 1 < 2 {
                            continue
@@ -206,6 +207,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     }
                     KeyCode::Up => {
                         tab_counter = 0;
+                        over_term = false;
 
                         offset = 0;
                         clear_input(begin_pos, prompt);
@@ -225,6 +227,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     }
                     KeyCode::Down => {
                         tab_counter = 0;
+                        over_term = false;
 
                         offset = 0;
                         clear_input(begin_pos, prompt);
@@ -277,19 +280,28 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                         if tab_counter == 1 {
                             tab_cmd_complete = user_input.clone();
-                            let mut cmds = completion.find_completion(&user_input);
+                            let mut cmds = completion.find_completion(&tab_cmd_complete);
                             cmds.sort();
+
+                            if cmds.len() < 1 {
+                                continue;
+                            }
 
                             let pos = get_cursor_position();
                         
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
 
                             let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-                            let mut cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
+                            let cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
+                            let rows = cmds.len().div_ceil(cols as usize);
+
+                            over_term = if rows > row as usize {
+                                true
+                            }else { false };
                             
                             println!();
                             for (i, cmd) in cmds.iter().enumerate() {
-                                print!("\x1b[1{:<width$}", cmd, width = max_cmd_length+4);    
+                                print!("{:<width$}", cmd, width = max_cmd_length+4);    
 
                                 if (i + 1) % cols as usize == 0 && i != 0 {
                                     println!();
@@ -299,7 +311,19 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                             }
 
-                            execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
+                            if over_term {
+                                let pos = get_cursor_position();
+                                if pos[0] != 0 {
+                                    println!();
+                                    execute!(std::io::stdout(), MoveTo(0, pos[1]+1)).expect("Problem with moving cursor");
+                                }
+                                
+                                print!("$ ");
+                                let pos = get_cursor_position();
+                                render_text(&user_input, pos, offset, true);
+                            } else {
+                                execute!(std::io::stdout(), MoveTo(pos[0], pos[1])).expect("Problem with moving cursor");
+                            }
                             
                             io::stdout().flush().unwrap();
                         }
@@ -319,33 +343,55 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                 tab_counter = 2;
                             }
 
-                            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+                            if over_term {
+                                execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
+                                user_input = cmds[tab_counter - 2].clone();
+                                print!("{} {}", prompt, user_input);
+
+                                if cmds.len() == 0 {
+                                    continue;
+                                }
+
+                                io::stdout().flush().unwrap();
+                                
+                                continue;
+                            }
+
+                            execute!(std::io::stdout(), Clear(ClearType::FromCursorDown)).expect("Problem with deleting char");
                             user_input = cmds[tab_counter - 2].clone();
                             print!("{} {}", prompt, user_input);
+                            let cur_pos = get_cursor_position();
 
                             if cmds.len() == 0 {
                                 continue;
                             }
 
+                            let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
+                            let cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
+                            
+                            println!();
+                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
+                            for (i, cmd) in cmds.iter().enumerate() {
+
+                                if &user_input == cmd {
+                                    print!("\x1b[1m{:<width$}\x1b[0m", cmd, width = max_cmd_length+4);    
+                                }else {
+                                    print!("{:<width$}", cmd, width = max_cmd_length+4);    
+                                }
+                                
+                                if (i + 1) % cols as usize == 0 && i != 0 {
+                                    println!();
+                                    let pos = get_cursor_position();
+                                    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
+                                }
+
+                            }
+
+                            execute!(std::io::stdout(), MoveTo(cur_pos[0], cur_pos[1])).expect("Problem with moving cursor");
+                            
                             io::stdout().flush().unwrap();
                         }
 
-                        //     if tab_counter > 1 {
-                        //         let mut cmds = completion.find_completion(&tab_cmd_complete);
-                        //         cmds.sort();
-
-                        //         if cmds.len() == 0 {
-                        //             continue
-                        //         }
-
-                        //         if tab_counter == cmds.len() + 2 {
-                        //             tab_counter = 2;
-                        //         }
-                        //         user_input = cmds[tab_counter - 2].clone();
-
-                        //         print_text(&user_input, true, true, false);
-                        //         continue
-                        //     }
 
                         // let mut cmds = completion.find_completion(&user_input);
 
@@ -418,7 +464,8 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                         let mut pos = get_cursor_position();
 
                         tab_counter = 0;
-
+                        over_term = false;
+    
                         if usize::from(pos[0]) + (offset * usize::from(col)) <= user_input.len() + 1 {
                             user_input.insert(usize::from(pos[0])+(offset * usize::from(col)) - 2, c);
                         }else {
