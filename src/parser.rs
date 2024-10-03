@@ -295,7 +295,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             let cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
                             let rows = cmds.len().div_ceil(cols as usize);
 
-                            over_term = if rows > row as usize {
+                            over_term = if rows >= (row - pos[1]) as usize {
                                 true
                             }else { false };
                             
@@ -308,7 +308,6 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                     let pos = get_cursor_position();
                                     execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
                                 }
-
                             }
 
                             if over_term {
@@ -357,37 +356,13 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                 continue;
                             }
 
-                            execute!(std::io::stdout(), Clear(ClearType::FromCursorDown)).expect("Problem with deleting char");
+                            execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
                             user_input = cmds[tab_counter - 2].clone();
                             print!("{} {}", prompt, user_input);
-                            let cur_pos = get_cursor_position();
 
                             if cmds.len() == 0 {
                                 continue;
                             }
-
-                            let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-                            let cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
-                            
-                            println!();
-                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                            for (i, cmd) in cmds.iter().enumerate() {
-
-                                if &user_input == cmd {
-                                    print!("\x1b[1m{:<width$}\x1b[0m", cmd, width = max_cmd_length+4);    
-                                }else {
-                                    print!("{:<width$}", cmd, width = max_cmd_length+4);    
-                                }
-                                
-                                if (i + 1) % cols as usize == 0 && i != 0 {
-                                    println!();
-                                    let pos = get_cursor_position();
-                                    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-                                }
-
-                            }
-
-                            execute!(std::io::stdout(), MoveTo(cur_pos[0], cur_pos[1])).expect("Problem with moving cursor");
                             
                             io::stdout().flush().unwrap();
                         }
