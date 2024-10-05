@@ -158,7 +158,8 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
     let mut tab_counter = 0;
     let mut over_term = false;
-    let mut tab_cmd_complete = String::new();
+    let mut tab_cmd_complete = vec![];
+    let mut is_path_completion = false;
 
     loop {
         let event = event::read().unwrap();
@@ -193,6 +194,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                         let mut pos = get_cursor_position();
                         tab_counter = 0;
                         over_term = false;
+                        is_path_completion = false;
 
                         if pos[0] - 1 < 2 {
                            continue
@@ -208,6 +210,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     KeyCode::Up => {
                         tab_counter = 0;
                         over_term = false;
+                        is_path_completion = false;
 
                         offset = 0;
                         clear_input(begin_pos, prompt);
@@ -228,6 +231,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     KeyCode::Down => {
                         tab_counter = 0;
                         over_term = false;
+                        is_path_completion = false;
 
                         offset = 0;
                         clear_input(begin_pos, prompt);
@@ -279,11 +283,18 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                         }
 
                         if tab_counter == 1 {
-                            tab_cmd_complete = user_input.clone();
-                            let mut cmds = completion.find_completion(&tab_cmd_complete);
-                            cmds.sort();
-
-                            if cmds.len() < 1 {
+                            if user_input.contains(char::is_whitespace) {
+                                let path = ".".to_string();
+                                
+                                tab_cmd_complete = completion.get_paths(&path);
+                                is_path_completion = true;
+                                
+                            } else {
+                                tab_cmd_complete = completion.find_cmds_completion(&user_input);
+                                tab_cmd_complete.sort();
+                            }
+                            
+                            if tab_cmd_complete.len() < 1 {
                                 continue;
                             }
 
@@ -291,17 +302,17 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                         
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
 
-                            let max_cmd_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
+                            let max_cmd_length = tab_cmd_complete.iter().map(|s| s.len()).max().unwrap_or(0);
                             let cols = col.div_ceil((max_cmd_length+4) as u16) - 1;
-                            let rows = cmds.len().div_ceil(cols as usize);
+                            let rows = tab_cmd_complete.len().div_ceil(cols as usize);
 
                             over_term = if rows >= (row - pos[1]) as usize {
                                 true
                             }else { false };
                             
                             println!();
-                            for (i, cmd) in cmds.iter().enumerate() {
-                                print!("{:<width$}", cmd, width = max_cmd_length+4);    
+                            for (i, cmd) in tab_cmd_complete.iter().enumerate() {
+                                print!("{:<width$}", cmd, width = max_cmd_length+2);    
 
                                 if (i + 1) % cols as usize == 0 && i != 0 {
                                     println!();
@@ -328,26 +339,31 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                         }
 
                         if tab_counter > 1 {
-                            let mut cmds = completion.find_completion(&tab_cmd_complete);
-                            cmds.sort();
-
-                            if cmds.len() == 0 {
-                                continue;
-                            }
-
                             let pos = get_cursor_position();
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
                             
-                            if tab_counter == cmds.len() + 2 {
+                            if tab_counter == tab_cmd_complete.len() + 2 {
                                 tab_counter = 2;
                             }
 
                             if over_term {
                                 execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
-                                user_input = cmds[tab_counter - 2].clone();
+
+                                if is_path_completion {
+                                    let mut split: Vec<_>  = user_input.split_whitespace().collect();
+                                    if split.len() > 1 {
+                                        split.pop();
+                                        user_input = split.join(" ") + " " + &tab_cmd_complete[tab_counter - 2];
+                                    } else {
+                                        user_input += &tab_cmd_complete[tab_counter - 2];
+                                    }
+                                } else {
+                                    user_input = tab_cmd_complete[tab_counter - 2].clone();
+                                }
+
                                 print!("{} {}", prompt, user_input);
 
-                                if cmds.len() == 0 {
+                                if tab_cmd_complete.len() == 0 {
                                     continue;
                                 }
 
@@ -357,10 +373,21 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             }
 
                             execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
-                            user_input = cmds[tab_counter - 2].clone();
+                            
+                            if is_path_completion {
+                                let mut split: Vec<_>  = user_input.split_whitespace().collect();
+                                if split.len() > 1 {
+                                    split.pop();
+                                    user_input = split.join(" ") + " " + &tab_cmd_complete[tab_counter - 2];
+                                } else {
+                                    user_input += &tab_cmd_complete[tab_counter - 2];
+                                }
+                            } else {
+                                user_input = tab_cmd_complete[tab_counter - 2].clone();
+                            }
                             print!("{} {}", prompt, user_input);
 
-                            if cmds.len() == 0 {
+                            if tab_cmd_complete.len() == 0 {
                                 continue;
                             }
                             
@@ -440,6 +467,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                         tab_counter = 0;
                         over_term = false;
+                        is_path_completion = false;
     
                         if usize::from(pos[0]) + (offset * usize::from(col)) <= user_input.len() + 1 {
                             user_input.insert(usize::from(pos[0])+(offset * usize::from(col)) - 2, c);

@@ -4,14 +4,16 @@ use std::os::unix::fs::PermissionsExt;
 use crate::executor;
 
 pub struct Completion {
-    cmds: Vec<String>
+    cmds: Vec<String>,
+    dirs: Vec<String>
 }
 
 impl Completion {
     pub fn init() -> Self {
         let cmds: Vec<String> = vec![];
-
-        Self { cmds }
+        let dirs: Vec<String> = vec![];
+        
+        Self { cmds, dirs }
     }
 
     fn get_binaries(dir: String) -> Vec<String> {
@@ -46,7 +48,7 @@ impl Completion {
         }
     }
 
-    pub fn find_completion(&self, prefix: &String) -> Vec<String> {
+    pub fn find_cmds_completion(&self, prefix: &String) -> Vec<String> {
         let completions: Vec<String> = self.cmds
             .iter()
             .filter(|&e| e.starts_with(prefix))
@@ -56,8 +58,8 @@ impl Completion {
         completions
     }
 
-    pub fn get_paths(&self, dir: String) -> Vec<String> {
-        let dirs_in_path = fs::read_dir(dir).expect("Failed to read directory")
+    pub fn get_paths(&self, dir: &String) -> Vec<String> {
+        fs::read_dir(dir).expect("Failed to read directory")
             .map(|entry| {
                 entry
                     .expect("Failed to get directory entry")
@@ -65,8 +67,16 @@ impl Completion {
                     .to_string_lossy()
                     .into_owned()
             })
+            .collect()
+    }
+    
+    pub fn find_path_completion(&self, dirs: Vec<String>, prefix: &String) -> Vec<String> {
+        let completions: Vec<String> = dirs
+            .iter()
+            .filter(|&e| e.starts_with(prefix))
+            .cloned()
             .collect();
 
-        dirs_in_path
+        completions
     }
 }
