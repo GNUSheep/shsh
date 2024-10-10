@@ -5,15 +5,13 @@ use crate::executor;
 
 pub struct Completion {
     cmds: Vec<String>,
-    dirs: Vec<String>
 }
 
 impl Completion {
     pub fn init() -> Self {
         let cmds: Vec<String> = vec![];
-        let dirs: Vec<String> = vec![];
         
-        Self { cmds, dirs }
+        Self { cmds  }
     }
 
     fn get_binaries(dir: String) -> Vec<String> {

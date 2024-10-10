@@ -30,26 +30,6 @@ impl Command {
     }
 }
 
-fn print_text(text: &String, with_prompt: bool, with_clear: bool, with_newline_before: bool) {
-    let pos = get_cursor_position();
-
-    if with_clear {
-        execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
-    }
-    execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-    if with_newline_before && with_prompt {
-        print!("\n$ {}", text);
-    }else if with_prompt {
-        print!("$ {}", text);
-    }
-
-    if !with_prompt {
-        print!("{}", text)
-    }
-
-    io::stdout().flush().unwrap();
-}
-
 fn clear_input(begin_pos: [u16; 2], prompt: char) {
     execute!(std::io::stdout(), MoveTo(0, begin_pos[1])).expect("Problem with moving cursor");
 
@@ -485,8 +465,12 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                         let pos = get_cursor_position();
                         if user_input.len() + 1 >= usize::from(pos[0]) + (offset * usize::from(col)) && pos[0] + 1 == col {
-                             execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("problem with moving cursor");
-                             offset += 1;
+                            if pos[1] + 1 >= row {
+                                println!();
+                            }
+                        
+                            execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("problem with moving cursor");
+                            offset += 1;
                         }
                     }
                     _ => {}
