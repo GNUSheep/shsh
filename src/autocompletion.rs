@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, metadata};
 use std::os::unix::fs::PermissionsExt;
 
 use crate::executor;
@@ -30,7 +30,6 @@ impl Completion {
         }
 
         binaries
-
     }
 
     pub fn get_cmds(&mut self) {
@@ -56,16 +55,31 @@ impl Completion {
         completions
     }
 
-    pub fn get_paths(&self, dir: &String) -> Vec<String> {
-        fs::read_dir(dir).expect("Failed to read directory")
-            .map(|entry| {
-                entry
-                    .expect("Failed to get directory entry")
-                    .file_name()
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect()
+    pub fn get_paths(&self, dir: &String) -> Vec<String> {        
+        if !metadata(dir).unwrap().is_dir() {
+            panic!("D");
+        } 
+        panic!("E");
+    }
+
+    pub fn get_dir(&self, dir: &String) -> Vec<String> {
+        let mut entries: Vec<String> = vec![];
+
+        if let Ok(files) = fs::read_dir(dir.clone()) {
+            for file in files.flatten() {
+                let path = file.path();
+
+                if path.is_dir() {
+                    entries.push(file.file_name().into_string().unwrap() +"/");
+                } else {
+                    entries.push(file.file_name().into_string().unwrap());
+                }
+            }
+        } else {
+            println!("Error while reading dir: {}", dir);
+        }
+
+        entries
     }
     
     pub fn find_path_completion(&self, dirs: Vec<String>, prefix: &String) -> Vec<String> {

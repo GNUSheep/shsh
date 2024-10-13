@@ -140,6 +140,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
     let mut over_term = false;
     let mut tab_cmd_complete = vec![];
     let mut is_path_completion = false;
+    let mut completion_pos_x = 0;
 
     loop {
         let event = event::read().unwrap();
@@ -168,6 +169,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                     KeyCode::Enter => {
                         crossterm::terminal::disable_raw_mode().expect("Problem with disabling raw mode");
                         execute!(std::io::stdout(), EnableLineWrap).expect("Problem with enabling line wrap");
+                        execute!(std::io::stdout(), Clear(ClearType::FromCursorDown)).expect("Problem with deleting char");
                         return user_input.to_string();
                     }
                     KeyCode::Backspace => {
@@ -264,11 +266,16 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                         if tab_counter == 1 {
                             if user_input.contains(char::is_whitespace) {
-                                let path = ".".to_string();
+                                let split: Vec<_>  = user_input.split_whitespace().collect();
+
+                                let mut path = ".".to_string();
+                                if split.len() > 1 && user_input.chars().last().unwrap() != ' ' {
+                                    path = split.last().unwrap().to_string();
+                                }
                                 
                                 tab_cmd_complete = completion.get_paths(&path);
                                 is_path_completion = true;
-                                
+                                completion_pos_x = user_input.len();
                             } else {
                                 tab_cmd_complete = completion.find_cmds_completion(&user_input);
                                 tab_cmd_complete.sort();
@@ -330,10 +337,9 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                 execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
 
                                 if is_path_completion {
-                                    let mut split: Vec<_>  = user_input.split_whitespace().collect();
+                                    let split: Vec<_>  = user_input.split_whitespace().collect();
                                     if split.len() > 1 {
-                                        split.pop();
-                                        user_input = split.join(" ") + " " + &tab_cmd_complete[tab_counter - 2];
+                                        user_input = (&user_input[..completion_pos_x]).to_string() + " " + &tab_cmd_complete[tab_counter - 2];
                                     } else {
                                         user_input += &tab_cmd_complete[tab_counter - 2];
                                     }
@@ -355,10 +361,9 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
                             
                             if is_path_completion {
-                                let mut split: Vec<_>  = user_input.split_whitespace().collect();
+                                let split: Vec<_>  = user_input.split_whitespace().collect();
                                 if split.len() > 1 {
-                                    split.pop();
-                                    user_input = split.join(" ") + " " + &tab_cmd_complete[tab_counter - 2];
+                                    user_input = (&user_input[..completion_pos_x]).to_string() + &tab_cmd_complete[tab_counter - 2];
                                 } else {
                                     user_input += &tab_cmd_complete[tab_counter - 2];
                                 }
