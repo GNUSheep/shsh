@@ -55,11 +55,21 @@ impl Completion {
         completions
     }
 
-    pub fn get_paths(&self, dir: &String) -> Vec<String> {        
-        if !metadata(dir).unwrap().is_dir() {
-            panic!("D");
-        } 
-        panic!("E");
+    pub fn get_paths(&self, dir: &String) -> (Vec<String>, usize, bool)  {        
+        match metadata(dir) {
+            Ok(md) => {
+                if md.is_dir() {
+                    return (self.get_dir(dir), 0, true);
+                }
+
+                let cur_dir = self.get_dir(&".".to_string());
+                (self.find_path_completion(cur_dir, dir), dir.len(), false)
+            },
+            Err(_) => {
+                let cur_dir = self.get_dir(&".".to_string());
+                (self.find_path_completion(cur_dir, dir), dir.len(), false)
+            }
+        }
     }
 
     pub fn get_dir(&self, dir: &String) -> Vec<String> {

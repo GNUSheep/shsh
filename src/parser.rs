@@ -272,15 +272,23 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                 if split.len() > 1 && user_input.chars().last().unwrap() != ' ' {
                                     path = split.last().unwrap().to_string();
                                 }
+
+                                let prefix_len;
+                                let is_dir;
+                                (tab_cmd_complete, prefix_len, is_dir) = completion.get_paths(&path);
                                 
-                                tab_cmd_complete = completion.get_paths(&path);
+                                if path != "." && !path.contains("/") && is_dir {
+                                    user_input += "/";
+                                    path += "/";
+                                }
+                                
                                 is_path_completion = true;
-                                completion_pos_x = user_input.len();
+                                completion_pos_x = user_input.len() - prefix_len;
                             } else {
                                 tab_cmd_complete = completion.find_cmds_completion(&user_input);
                                 tab_cmd_complete.sort();
                             }
-                            
+
                             if tab_cmd_complete.len() < 1 {
                                 continue;
                             }
@@ -325,7 +333,16 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             io::stdout().flush().unwrap();
                         }
 
+                        if tab_cmd_complete.len() == 0 {
+                            continue;
+                        }
+
                         if tab_counter > 1 {
+                            if is_path_completion && tab_cmd_complete.len() == 1 && tab_counter >= 3 {
+                                tab_counter = 0;
+                                continue
+                            }
+                            
                             let pos = get_cursor_position();
                             execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
                             
@@ -335,7 +352,7 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
 
                             if over_term {
                                 execute!(std::io::stdout(), Clear(ClearType::CurrentLine)).expect("Problem with deleting char");
-
+                                
                                 if is_path_completion {
                                     let split: Vec<_>  = user_input.split_whitespace().collect();
                                     if split.len() > 1 {
@@ -348,10 +365,6 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                                 }
 
                                 print!("{} {}", prompt, user_input);
-
-                                if tab_cmd_complete.len() == 0 {
-                                    continue;
-                                }
 
                                 io::stdout().flush().unwrap();
                                 
@@ -372,80 +385,8 @@ fn get_line(begin_pos: [u16; 2], history: &mut history::History, completion: &au
                             }
                             print!("{} {}", prompt, user_input);
 
-                            if tab_cmd_complete.len() == 0 {
-                                continue;
-                            }
-                            
                             io::stdout().flush().unwrap();
                         }
-
-
-                        // let mut cmds = completion.find_completion(&user_input);
-
-                        //     if cmds.len() == 1 {
-                        //         user_input = cmds[0].clone();
-                        //         print_text(&user_input, true, true, false);
-                        //         continue
-                        //     }
-
-                        //     if cmds.len() == 0 {
-                        //         continue
-                        //     }
-
-                        //     cmds.sort();
-                        //     let cmds_chunks: Vec<_> = cmds.chunks(2).collect();
-
-                        //     let max_cmds_length = cmds.iter().map(|s| s.len()).max().unwrap_or(0);
-
-                        //     print_text(&user_input, true, true, false);
-                        //     print_text(&"\n".to_string(), false, false, false);
-                        //     for chunk in cmds_chunks {
-                        //         let pos = get_cursor_position();
-                        //         execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-                        //         for cmd in chunk {
-                        //             print!("{:<len$}\t", cmd, len = max_cmds_length);
-                        //         }
-                        //         print!("\n");
-                        //         io::stdout().flush().unwrap();
-                        //     }
-                        //     print_text(&user_input, true, true, false);
-
-                        //     continue
-                        // }else {
-                        //     let split: Vec<_>  = user_input.split_whitespace().collect();
-                        //     let mut path: String = ".".to_string();
-
-                        //     if split.len() != 1 {
-                        //         path = split[split.len()-1].to_string();
-                        //     }
-
-                        //     if let Ok(metadata) = fs::metadata(path.clone()) {
-                        //         if !metadata.is_dir() {
-                        //             continue
-                        //         }
-                        //     }else {
-                        //         continue
-                        //     }
-                        //     let dirs_completion = completion.get_paths(path);
-
-                        //     print!("\n");
-                        //     io::stdout().flush().unwrap();
-
-                        //     let pos = get_cursor_position();
-                        //     execute!(std::io::stdout(), MoveTo(0, pos[1])).expect("Problem with moving cursor");
-
-                        //     for dir in dirs_completion {
-                        //         print!("{}  ", dir);
-                        //     }
-                        //     print!("\n");
-                        //     io::stdout().flush().unwrap();
-
-                        //     execute!(std::io::stdout(), MoveTo(0, pos[1] + 1)).expect("Problem with moving cursor");
-                        //     print_text(&user_input, true, true, false);
-
-                        //     continue
-
-                        // }
                     }
                     KeyCode::Char(c) => {
                         let mut pos = get_cursor_position();
