@@ -39,7 +39,7 @@ fn clear_input(begin_pos: [u16; 2], prompt: char) {
 }
 
 fn render_text(text: &String, mut cur_pos: [u16; 2], mut offset: usize, leave_the_cursor: bool) -> ([u16; 2], usize) {
-    let (mut col, mut row) = size().unwrap();
+    let (col, row) = size().unwrap();
 
     execute!(std::io::stdout(), MoveTo(cur_pos[0], cur_pos[1])).expect("Problem with moving cursor");
     execute!(std::io::stdout(), Clear(ClearType::FromCursorDown)).expect("Problem with deleting char");

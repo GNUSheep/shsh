@@ -5,6 +5,7 @@ use std::fs::File;
 use std::env;
 
 use regex::Regex;
+use glob::glob;
 
 use crate::parser;
 
@@ -29,7 +30,10 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
                 match cmd.args.len() {
                     0 => (),
                     1 => {
-                        path = cmd.args.pop().unwrap();
+                        let v = cmd.args.pop().unwrap();
+                        if v != "~" {
+                            path = v;
+                        }       
                     }
                     _ => {
                         println!("To many directions provided; see cd man");
@@ -40,7 +44,7 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
                 let path = Path::new(&path);
 
                 if let Err(_) = env::set_current_dir(&path) {
-                    println!("Problem with changing directory");
+                    println!("Problem with changing directory; cannot find {:?} dir", path);
                 }
 
                 return
@@ -82,7 +86,37 @@ pub fn exec_command(mut cmds: VecDeque<parser::Command>) {
             }
         }
 
-        let child = Command::new(cmd.name).args(cmd.args).stdout(stdout).stdin(stdin).spawn();
+        let mut parsed_args: Vec<String> = vec![];
+        for arg in &cmd.args {
+            if arg == "~" {
+                let path = get_env("HOME".to_string());
+                parsed_args.push(path);
+                continue;
+            }
+            
+            if !arg.contains("*") || arg.contains(" ") {
+                parsed_args.push(arg.to_string());
+                continue;            
+            }
+            
+            match glob(&arg) {
+                Ok(paths) => {
+                    for entry in paths {
+                        match entry {
+                            Ok(path) => parsed_args.push(path.display().to_string()),
+                            Err(path) => {
+                                println!("Problem with parsing path: {:?}", path);
+                            }
+                        }
+                    }
+                },
+                Err(_) => {
+                    println!("Problem with executing command containing \"*\" pattern");
+                }
+            }
+        }
+
+        let child = Command::new(cmd.name).args(parsed_args).stdout(stdout).stdin(stdin).spawn();
 
         match child {
             Ok(mut child) => {
